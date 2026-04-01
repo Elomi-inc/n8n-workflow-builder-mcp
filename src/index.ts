@@ -19,6 +19,12 @@ import { loadKnownNodeBaseTypes, normalizeNodeTypeAndVersion, isNodeTypeSupporte
 import { materializeIfConfigured } from './utils/nodesDb';
 import * as connectMainChain from './mcp/tools/connectMainChain';
 import * as listTemplateExamples from './mcp/tools/listTemplateExamples';
+import * as deployWorkflow from './mcp/tools/deployWorkflow';
+import * as updateRemoteWorkflow from './mcp/tools/updateRemoteWorkflow';
+import * as activateWorkflow from './mcp/tools/activateWorkflow';
+import * as deactivateWorkflow from './mcp/tools/deactivateWorkflow';
+import * as deleteRemoteWorkflow from './mcp/tools/deleteRemoteWorkflow';
+import * as listRemoteWorkflows from './mcp/tools/listRemoteWorkflows';
 
 // Log initial workspace
 console.error(`[DEBUG] Default workspace directory: ${getWorkspaceDir()}`);
@@ -2982,6 +2988,50 @@ server.tool(
     listTemplateExamples.description,
     listTemplateExamples.paramsSchema.shape,
     listTemplateExamples.handler
+);
+
+// --- Remote deployment tools (n8n REST API) ---
+
+server.tool(
+    deployWorkflow.toolName,
+    deployWorkflow.description,
+    deployWorkflow.paramsSchema.shape,
+    deployWorkflow.handler
+);
+
+server.tool(
+    updateRemoteWorkflow.toolName,
+    updateRemoteWorkflow.description,
+    updateRemoteWorkflow.paramsSchema.shape,
+    updateRemoteWorkflow.handler
+);
+
+server.tool(
+    activateWorkflow.toolName,
+    activateWorkflow.description,
+    activateWorkflow.paramsSchema.shape,
+    activateWorkflow.handler
+);
+
+server.tool(
+    deactivateWorkflow.toolName,
+    deactivateWorkflow.description,
+    deactivateWorkflow.paramsSchema.shape,
+    deactivateWorkflow.handler
+);
+
+server.tool(
+    deleteRemoteWorkflow.toolName,
+    deleteRemoteWorkflow.description,
+    deleteRemoteWorkflow.paramsSchema.shape,
+    deleteRemoteWorkflow.handler
+);
+
+server.tool(
+    listRemoteWorkflows.toolName,
+    listRemoteWorkflows.description,
+    listRemoteWorkflows.paramsSchema.shape,
+    listRemoteWorkflows.handler
 );
 
 // Create and configure the transport
