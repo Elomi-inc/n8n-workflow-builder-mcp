@@ -25,6 +25,7 @@ import * as activateWorkflow from './mcp/tools/activateWorkflow';
 import * as deactivateWorkflow from './mcp/tools/deactivateWorkflow';
 import * as deleteRemoteWorkflow from './mcp/tools/deleteRemoteWorkflow';
 import * as listRemoteWorkflows from './mcp/tools/listRemoteWorkflows';
+import * as listCredentials from './mcp/tools/listCredentials';
 
 // Log initial workspace
 console.error(`[DEBUG] Default workspace directory: ${getWorkspaceDir()}`);
@@ -3032,6 +3033,13 @@ server.tool(
     listRemoteWorkflows.description,
     listRemoteWorkflows.paramsSchema.shape,
     listRemoteWorkflows.handler
+);
+
+server.tool(
+    listCredentials.toolName,
+    listCredentials.description,
+    listCredentials.paramsSchema.shape,
+    listCredentials.handler
 );
 
 // Create and configure the transport
