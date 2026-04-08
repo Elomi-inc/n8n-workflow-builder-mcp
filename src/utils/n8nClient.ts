@@ -62,3 +62,7 @@ export async function listWorkflows(limit?: number): Promise<any> {
 export async function getWorkflow(id: string): Promise<any> {
     return request('GET', `/workflows/${id}`);
 }
+
+export async function listCredentials(): Promise<any> {
+    return request('GET', '/credentials');
+}
