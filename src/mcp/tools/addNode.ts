@@ -47,7 +47,11 @@ export const paramsSchema = z.object({
         source_node_output_name: z.string().describe("Output handle on the new node (e.g., 'main' or 'ai_languageModel')"),
         target_node_input_name: z.string().default('main').describe("Input handle on the target node"),
         target_node_input_index: z.number().optional().default(0).describe("Input index on the target node (default: 0)")
-    })).optional().describe("Optional: create connections from this new node to existing nodes")
+    })).optional().describe("Optional: create connections from this new node to existing nodes"),
+    credentials: z.record(z.string(), z.object({
+        id: z.string().describe("Credential ID from list_credentials"),
+        name: z.string().describe("Credential name from list_credentials")
+    })).optional().describe("Optional credentials to attach to the node. Keys are credential types (e.g. 'postgres', 'slackApi'), values are objects with 'id' and 'name' from list_credentials.")
 });
 
 export type Params = z.infer<typeof paramsSchema>;
@@ -202,6 +206,10 @@ export const handler = async (params: Params, _extra: any): Promise<Result> => {
             }
         } catch (e) {
             console.warn('[WARN] Could not compute credential placeholders for node:', (e as any)?.message || e);
+        }
+
+        if (params.credentials) {
+            Object.assign(nodeCredentials, params.credentials);
         }
 
         const newNode: N8nWorkflowNode = {
