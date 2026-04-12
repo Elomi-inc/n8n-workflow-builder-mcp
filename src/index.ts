@@ -11,10 +11,10 @@ import path from 'path';
 import { validateAndNormalizeWorkflow, collectMissingParameters } from './validation/workflowValidator';
 import { loadNodeTypesForCurrentVersion } from './validation/nodeTypesLoader';
 import { Workflow, N8nWorkflow, N8nWorkflowNode, N8nConnections, N8nConnectionDetail } from './types/n8n';
-import { ensureWorkflowDir, ensureWorkflowParentDir, resolvePath, resolveWorkflowPath, WORKFLOW_DATA_DIR_NAME, WORKFLOWS_FILE_NAME, setWorkspaceDir, getWorkspaceDir, tryDetectWorkspaceForName } from './utils/workspace';
+import { ensureWorkflowDir, ensureWorkflowParentDir, resolvePath, resolveWorkflowPath, sanitizeFilename, WORKFLOW_DATA_DIR_NAME, WORKFLOWS_FILE_NAME, setWorkspaceDir, getWorkspaceDir, tryDetectWorkspaceForName } from './utils/workspace';
 import { generateInstanceId, generateN8nId, generateUUID } from './utils/id';
 import { normalizeLLMParameters } from './utils/llm';
-import { initializeN8nVersionSupport, detectN8nVersion, setN8nVersion, getSupportedN8nVersions, getCurrentN8nVersion, getN8nVersionInfo } from './nodes/versioning';
+import { initializeN8nVersionSupport, detectN8nVersion, setN8nVersion, getSupportedN8nVersions, getCurrentN8nVersion, getN8nVersionInfo, workflowActivationDefaults } from './nodes/versioning';
 import { loadKnownNodeBaseTypes, normalizeNodeTypeAndVersion, isNodeTypeSupported, updateNodeCacheForVersion, getNodeInfoCache } from './nodes/cache';
 import { materializeIfConfigured } from './utils/nodesDb';
 import * as connectMainChain from './mcp/tools/connectMainChain';
@@ -223,7 +223,7 @@ server.tool(
                 id: generateN8nId(), // e.g., "Y6sBMxxyJQtgCCBQ"
                 nodes: [], // Initialize with empty nodes array
                 connections: {}, // Initialize with empty connections object
-                active: false,
+                ...workflowActivationDefaults(),
                 pinData: {},
                 settings: {
                     executionOrder: "v1"
@@ -235,9 +235,7 @@ server.tool(
                 tags: []
             };
 
-            // Sanitize workflowName for filename or ensure it's safe.
-            // For now, using directly. Consider a sanitization function for production.
-            const filename = `${workflowName.replace(/[^a-z0-9_.-]/gi, '_')}.json`;
+            const filename = `${sanitizeFilename(workflowName)}.json`;
             const filePath = resolvePath(path.join(WORKFLOW_DATA_DIR_NAME, filename));
 
             await fs.writeFile(filePath, JSON.stringify(newN8nWorkflow, null, 2));
@@ -426,6 +424,18 @@ server.tool(
             // Normalize the node type and resolve to a compatible typeVersion automatically
             const { finalNodeType, finalTypeVersion } = normalizeNodeTypeAndVersion(params.node_type, params.typeVersion);
             let resolvedVersion = finalTypeVersion;
+            const addNodeWarnings: string[] = [];
+
+            // Check if the node type exists in the loaded catalog at all
+            const knownInCatalog = getNodeInfoCache().has(params.node_type.toLowerCase())
+                || getNodeInfoCache().has(finalNodeType.toLowerCase())
+                || (getN8nVersionInfo()?.supportedNodes.has(finalNodeType) ?? false);
+            if (!knownInCatalog) {
+                addNodeWarnings.push(
+                    `Node type '${finalNodeType}' was not found in the n8n ${getCurrentN8nVersion() || 'unknown'} node catalog. ` +
+                    `The node will be added but may not be valid. Use 'list_available_nodes' to find valid node types.`
+                );
+            }
 
             // Check if node type is supported in current N8N version
             if (!isNodeTypeSupported(finalNodeType, finalTypeVersion)) {
@@ -617,10 +627,10 @@ server.tool(
                     return { ok, errors: nodeErrors, warnings: nodeWarnings, nodeIssues };
                 };
                 const local = buildLocalValidation(report, newNode.name);
-                return { content: [{ type: "text", text: JSON.stringify({ success: true, node: newNode, workflowId: workflow.id, createdConnections, localValidation: local }) }] };
+                return { content: [{ type: "text", text: JSON.stringify({ success: true, node: newNode, workflowId: workflow.id, createdConnections, localValidation: local, ...(addNodeWarnings.length > 0 ? { warnings: addNodeWarnings } : {}) }) }] };
             } catch (e: any) {
                 console.warn('[WARN] Validation step errored after add_node:', e?.message || e);
-                return { content: [{ type: "text", text: JSON.stringify({ success: true, node: newNode, workflowId: workflow.id, createdConnections }) }] };
+                return { content: [{ type: "text", text: JSON.stringify({ success: true, node: newNode, workflowId: workflow.id, createdConnections, ...(addNodeWarnings.length > 0 ? { warnings: addNodeWarnings } : {}) }) }] };
             }
         } catch (error: any) {
             console.error("[ERROR] Failed to add node:", error);
@@ -1607,18 +1617,22 @@ server.tool(
         try {
             // Step 1: ensure workflow exists (create if missing)
             await ensureWorkflowDir();
-            const filePath = resolvePath(path.join(WORKFLOW_DATA_DIR_NAME, `${workflow_name.replace(/[^a-z0-9_.-]/gi, '_')}.json`));
+            const filePath = resolvePath(path.join(WORKFLOW_DATA_DIR_NAME, `${sanitizeFilename(workflow_name)}.json`));
             let workflow: N8nWorkflow;
             try {
                 const raw = await fs.readFile(filePath, 'utf8');
                 workflow = JSON.parse(raw);
             } catch (e: any) {
                 // Create minimal workflow if missing
-                workflow = { name: workflow_name, id: generateUUID(), nodes: [], connections: {}, active: false, pinData: {}, settings: { executionOrder: 'v1' }, versionId: generateUUID(), meta: { instanceId: generateUUID() }, tags: [] } as any;
+                workflow = { name: workflow_name, id: generateUUID(), nodes: [], connections: {}, ...workflowActivationDefaults(), pinData: {}, settings: { executionOrder: 'v1' }, versionId: generateUUID(), meta: { instanceId: generateUUID() }, tags: [] } as any;
             }
 
-            // Helper to add a node with normalization
+            // Helper to add a node with normalization. Idempotent: if a node with
+            // the same name exists, return it instead of duplicating.
             const addNode = async (nodeType: string, nodeName: string, parameters?: Record<string, any>, position?: { x: number, y: number }): Promise<N8nWorkflowNode> => {
+                const existing = workflow.nodes.find(n => n.name === nodeName);
+                if (existing) return existing as N8nWorkflowNode;
+
                 const { finalNodeType, finalTypeVersion } = normalizeNodeTypeAndVersion(nodeType);
                 const node: any = {
                     id: generateN8nId(),
@@ -1649,11 +1663,20 @@ server.tool(
             const vtool = plan.vector_tool ? await addNode(plan.vector_tool.node_type, plan.vector_tool.node_name, plan.vector_tool.parameters, positions.vtool) : null;
             const extraTools: N8nWorkflowNode[] = [];
             if (Array.isArray(plan.tools)) {
-                for (const t of plan.tools) extraTools.push(await addNode(t.node_type, t.node_name || t.node_type.split('.').pop() || 'Tool', t.parameters));
+                let toolX = 640;
+                for (const t of plan.tools) {
+                    extraTools.push(await addNode(t.node_type, t.node_name || t.node_type.split('.').pop() || 'Tool', t.parameters, { x: toolX, y: 240 }));
+                    toolX += 200;
+                }
+            }
+            // Auto-create toolVectorStore bridge when vector_store exists but vector_tool wasn't provided
+            let effectiveVtool = vtool;
+            if (vstore && !vtool && agent) {
+                effectiveVtool = await addNode('@n8n/n8n-nodes-langchain.toolVectorStore', 'Vector Store Tool', undefined, positions.vtool);
             }
 
             // Step 3: wire standard connections
-            const toolIds = [...(vtool ? [vtool.id] : []), ...extraTools.map(t => t.id)];
+            const toolIds = [...(effectiveVtool ? [effectiveVtool.id] : []), ...extraTools.map(t => t.id)];
             await fs.writeFile(filePath, JSON.stringify(workflow, null, 2));
 
             // Re-load to use shared connection routine
@@ -1712,9 +1735,13 @@ server.tool(
                 await connect(memory, 'ai_memory', agent, 'ai_memory');
                 await connect(embeddings, 'ai_embeddings', vstore, 'ai_embeddings');
                 await connect(vstore, 'ai_document', vinsert, 'ai_document');
-                await connect(vstore, 'ai_vectorStore', vtool, 'ai_vectorStore');
-                await connect(model, 'ai_languageModel', vtool, 'ai_languageModel');
-                await connect(vtool, 'ai_tool', agent, 'ai_tool');
+                await connect(vstore, 'ai_vectorStore', effectiveVtool, 'ai_vectorStore');
+                await connect(model, 'ai_languageModel', effectiveVtool, 'ai_languageModel');
+                await connect(effectiveVtool, 'ai_tool', agent, 'ai_tool');
+                // Wire extra tools (from plan.tools[]) to agent
+                for (const tool of extraTools) {
+                    await connect(tool, 'ai_tool', agent, 'ai_tool');
+                }
                 await connect(trigger, 'main', agent, 'main');
 
                 return { success: true };
@@ -2264,9 +2291,9 @@ server.tool(
                         }
                     }
 
-                    // Always strict now; multiple chains are not allowed
-                    const strictMainOnly = true;
-                    const targetSet = strictMainOnly ? reachableMain : reachableExtended;
+                    // Use extended reachability: nodes attached via AI handles (ai_languageModel,
+                    // ai_memory, ai_embeddings, etc.) are considered part of the main chain.
+                    const targetSet = reachableExtended;
 
                     // Any enabled node not in targetSet is disconnected from main chain → error
                     for (const [name, node] of Object.entries(nodesByName)) {
@@ -2696,7 +2723,7 @@ server.tool(
                 id: generateN8nId(),
                 nodes: [],
                 connections: {},
-                active: false,
+                ...workflowActivationDefaults(),
                 pinData: {},
                 settings: { executionOrder: "v1" },
                 versionId: generateUUID(),
@@ -2801,7 +2828,7 @@ server.tool(
                     id: generateN8nId(),
                     nodes: [],
                     connections: {},
-                    active: false,
+                    ...workflowActivationDefaults(),
                     pinData: {},
                     settings: { executionOrder: "v1" },
                     versionId: generateUUID(),
@@ -2918,7 +2945,7 @@ server.tool(
                 id: generateN8nId(),
                 nodes: [{ id: nodeId, name: nodeName, type: finalNodeType, typeVersion: finalTypeVersion, position: [200, 200], parameters: params.parameters }] as any,
                 connections: {},
-                active: false,
+                ...workflowActivationDefaults(),
                 pinData: {},
                 settings: { executionOrder: "v1" },
                 versionId: generateUUID(),
@@ -2956,7 +2983,7 @@ server.tool(
             const nodeName = (finalNodeType.split('.').pop() || 'Node') + ' 1';
             const provisional: N8nWorkflow = {
                 name: 'tmp', id: generateN8nId(), nodes: [{ id: nodeId, name: nodeName, type: finalNodeType, typeVersion: finalTypeVersion, position: [200,200], parameters: merged }] as any,
-                connections: {}, active: false, pinData: {}, settings: { executionOrder: "v1" }, versionId: generateUUID(), meta: { instanceId: generateInstanceId() }, tags: []
+                connections: {}, ...workflowActivationDefaults(), pinData: {}, settings: { executionOrder: "v1" }, versionId: generateUUID(), meta: { instanceId: generateInstanceId() }, tags: []
             };
             const nodeTypes = await loadNodeTypesForCurrentVersion(path.resolve(__dirname, '../workflow_nodes'), getCurrentN8nVersion());
             const report = validateAndNormalizeWorkflow(provisional as any, nodeTypes);
