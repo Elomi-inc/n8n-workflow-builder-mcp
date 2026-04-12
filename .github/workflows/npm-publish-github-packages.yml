@@ -49,6 +49,8 @@ jobs:
           name: Release v${{ steps.version.outputs.version }}
           generate_release_notes: true
 
-      - name: Publish to npm (Trusted Publisher OIDC)
+      - name: Publish to npm
         if: ${{ contains(github.event.head_commit.message, 'chore(release)') || github.event_name == 'workflow_dispatch' }}
         run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
