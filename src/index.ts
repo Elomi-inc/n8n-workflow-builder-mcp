@@ -3082,8 +3082,8 @@ async function main(): Promise<void> {
             if (typeof anyServer.resource === 'function') {
                 // List workflows resource
                 anyServer.resource(
-                    "n8n/workflows",
-                    "List available n8n workflows (JSON)",
+                    "n8n-workflows",
+                    "n8n://workflows",
                     async () => {
                         try {
                             await ensureWorkflowDir();
@@ -3099,8 +3099,8 @@ async function main(): Promise<void> {
 
                 // List node types resource
                 anyServer.resource(
-                    "n8n/node-types",
-                    "List available node types (JSON)",
+                    "n8n-node-types",
+                    "n8n://node-types",
                     async () => {
                         try {
                             const nodeTypes = Array.from(getNodeInfoCache().values()).map(v => v.officialType).sort();
