@@ -2,13 +2,13 @@ import { z } from 'zod';
 import fs from 'fs/promises';
 import path from 'path';
 import { N8nWorkflow, N8nWorkflowNode } from '../../types/n8n';
-import { ensureWorkflowDir, resolvePath, WORKFLOW_DATA_DIR_NAME } from '../../utils/workspace';
+import { ensureWorkflowDir, resolveWorkflowPath, WORKFLOW_DATA_DIR_NAME } from '../../utils/workspace';
 import { generateUUID, generateN8nId } from '../../utils/id';
 import { normalizeNodeTypeAndVersion } from '../../nodes/cache';
 import { ToolNames, ErrorCodes } from '../../utils/constants';
 import { validateAndNormalizeWorkflow } from '../../validation/workflowValidator';
 import { loadNodeTypesForCurrentVersion } from '../../validation/nodeTypesLoader';
-import { getCurrentN8nVersion } from '../../nodes/versioning';
+import { getCurrentN8nVersion, workflowActivationDefaults } from '../../nodes/versioning';
 import { wireAiConnections, createAgentWiringConnections, saveWorkflow, NodeConnectionTypes } from '../../tools/wiringService';
 import { createSuccessResponse, createErrorResponse, createUsageInfo, createActionPlan } from '../../utils/responses';
 import { v4 as uuidv4 } from 'uuid';
@@ -54,18 +54,24 @@ export async function handler(params: Params, _extra: any): Promise<Result> {
     try {
         // Step 1: ensure workflow exists (create if missing)
         await ensureWorkflowDir();
-        const filePath = resolvePath(path.join(WORKFLOW_DATA_DIR_NAME, `${workflow_name.replace(/[^a-z0-9_.-]/gi, '_')}.json`));
+        const filePath = resolveWorkflowPath(workflow_name);
         let workflow: N8nWorkflow;
         try {
             const raw = await fs.readFile(filePath, 'utf8');
             workflow = JSON.parse(raw);
         } catch (e: any) {
             // Create minimal workflow if missing
-            workflow = { name: workflow_name, id: generateUUID(), nodes: [], connections: {}, active: false, pinData: {}, settings: { executionOrder: 'v1' }, versionId: generateUUID(), meta: { instanceId: generateUUID() }, tags: [] } as any;
+            workflow = { name: workflow_name, id: generateUUID(), nodes: [], connections: {}, ...workflowActivationDefaults(), pinData: {}, settings: { executionOrder: 'v1' }, versionId: generateUUID(), meta: { instanceId: generateUUID() }, tags: [] } as any;
         }
 
-        // Helper to add a node with normalization
+        // Helper to add a node with normalization. Idempotent: if a node with the
+        // same name already exists in the workflow, return it instead of creating a
+        // duplicate. This prevents triplication when compose is called multiple times
+        // on the same workflow (e.g., LLM retries).
         const addNode = async (nodeType: string, nodeName: string, parameters?: Record<string, any>, position?: { x: number, y: number }): Promise<N8nWorkflowNode> => {
+            const existing = workflow.nodes.find(n => n.name === nodeName);
+            if (existing) return existing as N8nWorkflowNode;
+
             const { finalNodeType, finalTypeVersion } = normalizeNodeTypeAndVersion(nodeType);
             const node: any = {
                 id: generateN8nId(),

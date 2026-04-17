@@ -1,13 +1,7 @@
-[![Add to Cursor](https://fastmcp.me/badges/cursor_dark.svg)](https://fastmcp.me/MCP/Details/1063/n8n-workflow-builder)
-[![Add to VS Code](https://fastmcp.me/badges/vscode_dark.svg)](https://fastmcp.me/MCP/Details/1063/n8n-workflow-builder)
-[![Add to Claude](https://fastmcp.me/badges/claude_dark.svg)](https://fastmcp.me/MCP/Details/1063/n8n-workflow-builder)
-[![Add to ChatGPT](https://fastmcp.me/badges/chatgpt_dark.svg)](https://fastmcp.me/MCP/Details/1063/n8n-workflow-builder)
-[![Add to Codex](https://fastmcp.me/badges/codex_dark.svg)](https://fastmcp.me/MCP/Details/1063/n8n-workflow-builder)
-[![Add to Gemini](https://fastmcp.me/badges/gemini_dark.svg)](https://fastmcp.me/MCP/Details/1063/n8n-workflow-builder)
 
 # n8n Workflow Builder MCP
 
-This project provides a Model Context Protocol (MCP) server for building and manipulating n8n workflows JSON in Cursor IDE. It's a way to build n8n workflows just by prompting with AI in chat.
+A Model Context Protocol (MCP) server for building and manipulating n8n workflows. Build n8n workflows just by prompting with AI — works with Claude Code, VS Code, Cursor, and any MCP-compatible client.
 
 <a href="https://glama.ai/mcp/servers/@ifmelate/n8n-workflow-builder-mcp">
   <img width="380" height="200" src="https://glama.ai/mcp/servers/@ifmelate/n8n-workflow-builder-mcp/badge" alt="n8n-workflow-builder-mcp MCP server" />
@@ -16,15 +10,8 @@ This project provides a Model Context Protocol (MCP) server for building and man
 # DEMO VIDEO:
 [![Watch the video](https://github.com/user-attachments/assets/53706f62-7e99-449f-8537-0ce951c727e1)](https://youtu.be/MKEVLM5QmPA?si=8SJQAcYGeAIuhaBm)
 
-# Cursor rules:
-- file with rules is in `rules/n8n-mcp-server-rules.mdc`
-
-## Current status of implementation
-
-Basically, it's working - MCP server creates JSON file with n8n workflow that you can copy and paste to workflow editor in n8n UI.
-Current problems:
-- sometimes llm agents put wrong parameters in the request. **I plan to find a way to fix this**.
-- not all types of node are checked working. **I'm working to resolve it**.
+## Cursor rules
+- File with rules is in `rules/n8n-mcp-server-rules.mdc`
 
 ## Key Features
 
@@ -33,123 +20,87 @@ Current problems:
 - **Connection Management**: Create connections between workflow nodes
 - **AI Integration**: Special tools for connecting AI components in workflows
 - **AI-Friendly Interface**: Designed specifically for interaction with AI agents
-- **N8N Version Management**: Automatic version detection and compatibility handling - supports 123+ N8N versions with dynamic node filtering and "closest lower version" matching for backward compatibility
+- **N8N Version Management**: Automatic version detection and compatibility handling - supports 184+ n8n versions (1.86.0 – 2.6.2) with dynamic node filtering and "closest lower version" matching for backward compatibility
 
 ## Prerequisites
 
-- Node.js (v14 or higher)
-- Cursor IDE (v0.48 or newer)
+- Node.js (v18 or higher)
 - npm (for npx command)
+- An MCP-compatible client (Claude Code, VS Code, Cursor, etc.)
 
 ## Installation & Setup
 
-### Recommended: Using npx in mcp.json (Easiest)
+### Getting your n8n API Key
 
-The recommended way to install this MCP server is using npx directly in your `.cursor/mcp.json` file:
+1. Open your n8n instance in a browser
+2. Go to **Settings > API Keys**
+3. Click **Create API Key**
+4. Copy the generated key and use it in your configuration
+
+### Claude Code (Recommended)
+
+Add the MCP server using the Claude Code CLI:
+
+```bash
+claude mcp add n8n-workflow-builder -- npx -y n8n-workflow-builder-mcp
+```
+
+Then set the environment variables:
+
+```bash
+claude mcp add n8n-workflow-builder \
+  -e N8N_API_URL=http://localhost:5678 \
+  -e N8N_API_KEY=your-n8n-api-key-here \
+  -- npx -y n8n-workflow-builder-mcp
+```
+
+> `N8N_VERSION` is optional — the server auto-detects it from the API.
+
+### VS Code / Cursor
+
+Add to your MCP config file (`.vscode/mcp.json` for VS Code, `.cursor/mcp.json` for Cursor):
 
 ```json
 {
   "mcpServers": {
     "n8n-workflow-builder": {
       "command": "npx",
-      "args": [
-        "-y",
-        "n8n-workflow-builder-mcp"
-      ],
+      "args": ["-y", "n8n-workflow-builder-mcp"],
       "env": {
         "N8N_API_URL": "http://localhost:5678",
-        "N8N_API_KEY": "your-n8n-api-key-here",
-       // "N8N_VERSION": "1.76.1" // optional, if not set, the server will try to detect the version automatically
+        "N8N_API_KEY": "your-n8n-api-key-here"
       }
     }
   }
 }
 ```
 
-This approach:
-- ✅ Automatically installs the latest version
-- ✅ Does not require global installation  
-- ✅ Works reliably across different environments
-- ✅ No manual building or path configuration needed
+Restart your IDE for changes to take effect.
 
-**Setup Steps:**
-1. Create the `.cursor` directory in your project root (if it doesn't exist):
-   ```bash
-   mkdir -p .cursor
-   ```
+### Development Installation
 
-3. Create or update `.cursor/mcp.json` with the configuration above, replacing:
-   - `N8N_API_URL`: Your n8n instance URL (default: `http://localhost:5678`)
-   - `N8N_API_KEY`: Your n8n API key from the n8n settings
-   - `N8N_VERSION`: (Optional) Override N8N version - if not set, auto-detects from API
+For development or local testing, clone and build from source:
 
-4. Restart Cursor IDE for changes to take effect
+```bash
+git clone https://github.com/ifmelate/n8n-workflow-builder-mcp.git
+cd n8n-workflow-builder-mcp
+npm install
+npm run build
+```
 
+Then point your MCP client to the built entry point:
 
-### Getting your n8n API Key:
-1. Open your n8n instance in a browser
-2. Go to Settings > API Keys
-3. Click "Create API Key"
-4. Copy the generated key and use it in your configuration
+```bash
+# Claude Code
+claude mcp add n8n-workflow-builder -- node /absolute/path/to/n8n-workflow-builder-mcp/dist/index.js
 
-### Alternative: Development Installation
+# VS Code / Cursor — use the same JSON config above with "command": "node" and "args": ["/absolute/path/to/dist/index.js"]
+```
 
-For development or local testing, you can clone and build from source:
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/ifmelate/n8n-workflow-builder-mcp.git
-   cd n8n-workflow-builder-mcp
-   ```
-
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Build the TypeScript project:
-   ```bash
-   npm run build
-   ```
-
-4. Configure in `.cursor/mcp.json`:
-   ```json
-   {
-     "mcpServers": {
-       "n8n-workflow-builder": {
-         "command": "node",
-         "args": ["/absolute/path/to/n8n-workflow-builder-mcp/dist/index.js"],
-         "env": {
-           "N8N_API_URL": "http://localhost:5678",
-           "N8N_API_KEY": "your-n8n-api-key-here",
-           //"N8N_VERSION": "1.76.1" - optional
-         }
-       }
-     }
-   }
-   ```
-
-5. For development with auto-rebuild:
-   ```bash
-   npm run dev
-   ```
-
-## Cursor IDE Integration
-
-### Using Cursor Settings UI (Optional)
-
-Alternatively, you can set up the MCP server through Cursor's interface:
-
-1. Start Cursor IDE
-2. Go to Settings > Features > MCP Servers
-3. Click "Add Server" 
-4. For npx method: Use command `npx` with args `["-y", "n8n-workflow-builder-mcp"]`
-5. Add environment variables:
-   - `N8N_API_URL`: `http://localhost:5678`
-   - `N8N_API_KEY`: `your-n8n-api-key-here`
-   - `N8N_VERSION`: `1.76.1` (optional - auto-detects if not set)
-6. Make sure the server is enabled
-7. Restart Cursor IDE for changes to take effect
+For development with auto-rebuild:
+```bash
+npm run dev
+```
 
 ## Available MCP Tools
 
@@ -209,79 +160,25 @@ The server provides the following tools for working with n8n workflows:
 
 `validate_workflow` promotes warnings to errors and additionally fails when any enabled node is not connected (directly or via AI ports) to the main chain starting at the inferred `startNode`. Use `connect_from`/`connect_to` or `add_ai_connections` to fix connectivity.
 
-## Troubleshooting Cursor Integration
+## Troubleshooting
 
-If you're having trouble getting the MCP server to work with Cursor, try these steps:
+### General
 
-### For npx installation (Recommended method):
+1. **Check your MCP config** — make sure JSON is valid and the server name matches.
+2. **Update Node.js** to the latest LTS version.
+3. **Clear npm cache** if npx fails: `npm cache clean --force`
+4. **Try global install** as a fallback: `npm install -g n8n-workflow-builder-mcp`
 
- Make sure your `.cursor/mcp.json` file is properly formatted:
-   ```json
-   {
-     "mcpServers": {
-       "n8n-workflow-builder": {
-         "command": "npx",
-         "args": ["-y", "n8n-workflow-builder-mcp"]
-       }
-     }
-   }
-   ```
+### Claude Code
 
-### General troubleshooting:
+- Run `claude mcp list` to verify the server is registered.
+- Check logs with `claude mcp logs n8n-workflow-builder`.
 
-1. **Check Cursor MCP settings**:
-   - Open Cursor Settings
-   - Go to Features > MCP Servers
-   - Make sure your server is listed and enabled
-   - If it's listed but not working, try clicking the refresh button
+### VS Code / Cursor
 
-2. **Check server logs**: Look for errors in the Cursor Output panel. Select "Cursor MCP" from the dropdown in the Output panel to see MCP-specific logs.
-
-3. **Try manual installation**: If npx fails, try the global installation method as an alternative:
-   ```bash
-   npm install -g n8n-workflow-builder-mcp
-   ```
-
-## Common Issues and Solutions
-
-### "Failed to create client" or "Module not found"
-
-This usually happens when:
-- Internet connection issues prevent npx from downloading the package
-- Node.js/npm version compatibility issues
-- Cursor MCP service is not running properly
-
-Try:
-1. Check your internet connection
-2. Update Node.js to the latest LTS version
-3. Restart Cursor completely
-4. Try the global installation method as fallback
-
-### MCP Server is not showing up in Cursor
-
-This can happen if:
-- The `.cursor/mcp.json` file is not properly formatted
-- Cursor hasn't detected the configuration change
-- File permissions on the `.cursor` directory
-
-Try:
-1. Validating the JSON format of your `.cursor/mcp.json` file
-2. Restarting Cursor
-3. Manually selecting the server in Cursor settings (if it appears there)
-4. Check file permissions: `chmod 755 .cursor`
-
-### MCP Server shows up but tools aren't available
-
-This can happen if:
-- The server isn't properly registering its tools
-- Package installation is incomplete
-- Version compatibility issues
-
-Try:
-1. Check the package was downloaded correctly by npx
-2. Clicking the refresh button in the MCP server settings in Cursor
-3. Try clearing npm cache: `npm cache clean --force`
-4. Use the development installation method for debugging
+- Check the Output panel — select "MCP" from the dropdown to see server logs.
+- Make sure the server is enabled in Settings > Features > MCP Servers.
+- Restart the IDE after config changes.
 
 ## Project Structure
 

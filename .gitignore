@@ -5,6 +5,8 @@ workflow_nodes/**
 *.sqlite
 *.sqlite-journal
 *.db
+# The shipped nodes catalog at repo root is the published source of truth.
+!/catalog.sqlite
 
 # Node
 node_modules/
@@ -17,6 +19,9 @@ node_modules/
 npm-debug.log
 yarn-debug.log
 yarn-error.log
+
+# MCP config (contains API keys)
+.mcp.json
 
 # Environment variables
 .env
@@ -43,6 +48,7 @@ Thumbs.db
 # Editor directories and files
 .idea/
 .vscode/
+.claude/
 *.suo
 *.ntvs*
 *.njsproj

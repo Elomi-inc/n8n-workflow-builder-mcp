@@ -23,7 +23,7 @@ jobs:
       # Setup .npmrc file to publish to npm
       - uses: actions/setup-node@v4
         with:
-          node-version: "18.x"
+          node-version: "22.x"
           registry-url: "https://registry.npmjs.org"
       - run: npm install
       - run: npm run build
@@ -33,7 +33,7 @@ jobs:
         run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
 
       - name: Create Git tag
-        if: ${{ !contains(github.event.head_commit.message, 'chore(release)') && github.event_name != 'workflow_dispatch' }}
+        if: ${{ contains(github.event.head_commit.message, 'chore(release)') || github.event_name == 'workflow_dispatch' }}
         continue-on-error: true
         run: |
           git config --local user.email "action@github.com"
@@ -42,15 +42,15 @@ jobs:
           git push origin "v${{ steps.version.outputs.version }}"
 
       - name: Create GitHub Release
-        if: ${{ !contains(github.event.head_commit.message, 'chore(release)') && github.event_name != 'workflow_dispatch' }}
+        if: ${{ contains(github.event.head_commit.message, 'chore(release)') || github.event_name == 'workflow_dispatch' }}
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ steps.version.outputs.version }}
           name: Release v${{ steps.version.outputs.version }}
           generate_release_notes: true
 
-      - run: npm publish --provenance --access public
-        # only if the commit message contains chore(release), or if manually triggered with workflow_dispatch
+      - name: Publish to npm
         if: ${{ contains(github.event.head_commit.message, 'chore(release)') || github.event_name == 'workflow_dispatch' }}
+        run: npm publish --provenance --access public
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }} 
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
