@@ -2,8 +2,9 @@ import { z } from 'zod';
 import fs from 'fs/promises';
 import path from 'path';
 import { N8nWorkflow } from '../../types/n8n';
-import { ensureWorkflowDir, resolvePath, setWorkspaceDir, WORKFLOW_DATA_DIR_NAME } from '../../utils/workspace';
+import { ensureWorkflowDir, resolvePath, sanitizeFilename, setWorkspaceDir, WORKFLOW_DATA_DIR_NAME } from '../../utils/workspace';
 import { generateInstanceId, generateN8nId, generateUUID } from '../../utils/id';
+import { workflowActivationDefaults } from '../../nodes/versioning';
 import { ToolNames } from '../../utils/constants';
 
 // Schema definition
@@ -62,7 +63,7 @@ export async function handler(params: Params, _extra: any) {
             id: generateN8nId(), // e.g., "Y6sBMxxyJQtgCCBQ"
             nodes: [], // Initialize with empty nodes array
             connections: {}, // Initialize with empty connections object
-            active: false,
+            ...workflowActivationDefaults(),
             pinData: {},
             settings: {
                 executionOrder: "v1"
@@ -74,9 +75,7 @@ export async function handler(params: Params, _extra: any) {
             tags: []
         };
 
-        // Sanitize workflowName for filename or ensure it's safe.
-        // For now, using directly. Consider a sanitization function for production.
-        const filename = `${workflowName.replace(/[^a-z0-9_.-]/gi, '_')}.json`;
+        const filename = `${sanitizeFilename(workflowName)}.json`;
         const filePath = resolvePath(path.join(WORKFLOW_DATA_DIR_NAME, filename));
 
         await fs.writeFile(filePath, JSON.stringify(newN8nWorkflow, null, 2));
