@@ -1,0 +1,12 @@
+version: 2
+updates:
+  # GitHub Actions are pinned to commit SHAs (SEC-414). Dependabot keeps each
+  # pin and its version comment current, in one grouped PR a week.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns:
+          - "*"
